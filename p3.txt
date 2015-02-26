@@ -1,0 +1,14 @@
+x = iread("enter an integer: ");
+factorial = 1;
+mult = 2;
+if x == 0 or x == 1 then
+	println(1);
+else 
+	while mult <= 0 do
+		factorial = factorial * mult;
+	end
+end
+
+println(factorial);
+
+
