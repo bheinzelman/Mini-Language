@@ -5,16 +5,41 @@
  */
 
 #include <iostream>
+#include <string>
 #include "ast.h"
 #include "Token.h"
 #include "SymbolTable.h"
+#include <stdlib.h> 
 
 const std::string INDENTATION = "  ";
+
+//last interpreted values
+int it_int = 0;
+double it_float = 0.0;
+bool it_bool = false;
+std::string it_string = "";
+int it_expr_type = -1;
+
+//if expression has a connector
+char op = ' ';
+int bop = -1;
+
+bool not_flag = false;
+
+//evaluation functions
+float add(double a, char op, double c);
+int add(int a, char op, int c);
+std::string add(std::string a, char op, std::string c);
+
+bool comp(int a, int op, int b);
+bool comp(double a, int op, double b);
+bool comp(std::string a, int op, std::string b);
 
 /*
  * StmtList implementation
  */
 
+#pragma region StmtList 
 void StmtList::print(std::ostream& out, std::string indent_amt)
 {
 	out << indent_amt << "StmtList: " << std::endl;
@@ -36,10 +61,20 @@ bool StmtList::type_safe(SymbolTable& sym_table, std::ostream& out) {
 	return true;
 }
 
+void StmtList::eval(SymbolTable& sym_table, std::ostream& os) {
+	sym_table.push_environment();
+	for (int i = 0; i < stmts.size(); i++)
+		stmts[i]->eval(sym_table, os);
+	sym_table.pop_environment();
+}
+#pragma endregion StmtList
+
 
 /*
  * BasicIf implementation
  */
+
+#pragma region BasicIf
 void BasicIf::set_if_expr(BoolExpr* new_if_expr) {
 	if (new_if_expr != NULL)
 		if_expr = new_if_expr;
@@ -56,10 +91,13 @@ BoolExpr*  BasicIf::get_if_expr(){
 StmtList*  BasicIf::get_if_stmts() {
 	return if_stmts;
 }
+#pragma endregion BasicIf
 
 /*
  * IfStmt implementation
  */
+
+#pragma region IfStmt
 IfStmt::IfStmt() {
 	has_else_stmt = false;
 }
@@ -120,10 +158,36 @@ bool IfStmt::type_safe(SymbolTable& sym_table, std::ostream& out) {
 	return true;
 }
 
+void IfStmt::eval(SymbolTable& sym_table, std::ostream& os) {
+	sym_table.push_environment();
+	it_expr_type = -1;
+	bop = -1;
+	if_part->get_if_expr()->eval(sym_table, os);
+	if (it_bool) {
+		if_part->get_if_stmts()->eval(sym_table, os);
+		return;
+	}
+	for (int i = 0; i < elseifs.size(); i++) {
+		it_expr_type = -1;
+		bop = -1;
+		elseifs[i]->get_if_expr()->eval(sym_table, os);
+		if (it_bool) {
+			elseifs[i]->get_if_stmts()->eval(sym_table, os);
+			return;
+		}
+	}
+	if (has_else_stmt) {
+		else_stmts->eval(sym_table, os);
+	}
+	sym_table.pop_environment();
+}
+#pragma endregion IfStmt
+
 /*
  *  WhileStmt class implementation
  */
 
+#pragma region WhileStmt
 void WhileStmt::print(std::ostream& out, std::string indent_amt) {
 	out << indent_amt << "WhileStmt: " << std::endl;
 	while_expr->print(out, indent_amt + INDENTATION);
@@ -150,10 +214,27 @@ bool WhileStmt::type_safe(SymbolTable& sym_table, std::ostream& out) {
 	return true; 
 }
 
+void WhileStmt::eval(SymbolTable& sym_table, std::ostream& os) {
+	sym_table.push_environment();
+	it_expr_type = -1;
+	bop = -1;
+	while_expr->eval(sym_table, os);
+	while (it_bool) {
+		it_expr_type = -1;
+		while_stmts->eval(sym_table, os);
+		it_expr_type = -1;
+		bop = -1;
+		while_expr->eval(sym_table, os);
+	}
+	sym_table.pop_environment();
+}
+#pragma endregion WhileStmt
+
 /*
  * PrintStmt implementation
  */
 
+#pragma region PrintStmt
 void PrintStmt::print(std::ostream& out, std::string indent_amt) {
 	if (print_type == PRINT_LN) {
 		out << indent_amt << "PrintStmt: PRINTLN " << std::endl;
@@ -178,9 +259,37 @@ bool PrintStmt::type_safe(SymbolTable& sym_table, std::ostream& out) {
 		return true; 
 	return false;
 }
+
+void PrintStmt::eval(SymbolTable& sym_table, std::ostream& os) {
+	it_expr_type = -1;
+	print_expr->eval(sym_table, os);
+	if (it_expr_type == STRING_TYPE) {
+		os << it_string;
+	}
+	else if(it_expr_type == INT_TYPE) {
+		os << it_int;
+	}
+	else if (it_expr_type == FLOAT_TYPE) {
+		os << it_float;
+	}
+	else if (it_expr_type == BOOL_FALSE || it_expr_type == BOOL_TRUE) {
+		if (!it_bool) {
+			os << "false";
+		}
+		else if (it_bool) {
+			os << "true";
+		}
+	}
+	if (print_type == PRINT_LN)
+		os << std::endl;
+}
+#pragma endregion PrintStmt
+
 /*
  * Assignment implementation
  */
+
+#pragma region AssignStmt
 void AssignStmt::print(std::ostream& out, std::string indent_amt) {
 	out << indent_amt << "AssignStmt: " << std::endl 
 		<< indent_amt + INDENTATION << "ID: " << id.lexeme() << std::endl;
@@ -219,10 +328,42 @@ bool AssignStmt::type_safe(SymbolTable& sym_table, std::ostream& out) {
 
 }
 
+void AssignStmt::eval(SymbolTable& sym_table, std::ostream& os) {
+	it_expr_type = -1;
+	assign_expr->eval(sym_table, os);
+	if (it_expr_type == STRING_TYPE) {
+		std::string* val = new std::string(it_string);
+		sym_table.set_value(id.lexeme(), val, STRING_TYPE);
+	}
+	else if (it_expr_type == INT_TYPE) {
+		int* val = new int(it_int);
+		sym_table.set_value(id.lexeme(), val, INT_TYPE);
+	}
+	else if (it_expr_type == FLOAT_TYPE) {
+		double* val = new double(it_float);
+		sym_table.set_value(id.lexeme(), val, FLOAT_TYPE);
+	}
+	else if (it_expr_type == BOOL_FALSE || it_expr_type == BOOL_TRUE) {
+		bool* val;
+		if (it_bool) {
+			val = new bool(true);
+			sym_table.set_value(id.lexeme(), val, BOOL_TRUE);
+		}
+		else {
+			val = new bool(false);
+			sym_table.set_value(id.lexeme(), val, BOOL_FALSE);
+		}
+		
+	}
+	
+}
+#pragma endregion AssignStmt
+
 /*
  * Simple Expr implementation
  */
 
+#pragma region SimpleExpr
 void SimpleExpr::print(std::ostream& out, std::string indent_amt) {
 	out << indent_amt << "Simple Expr: " << tokens[term.type()] << "("
 		<< term.lexeme() << ")" << std::endl;
@@ -254,10 +395,81 @@ bool SimpleExpr::calc_type(SymbolTable& sym_table, int& type, std::ostream& out)
 	return true;
 }
 
+void SimpleExpr::eval(SymbolTable& sym_table, std::ostream& os) {
+	int prev_type = it_expr_type;
+	it_expr_type = term.type();
+	if (it_expr_type == INT_TYPE) {
+		int val = atoi(term.lexeme().c_str());
+		if (prev_type == -1)
+			it_int = val;
+		else
+			it_int = add(it_int, op, val);
+	}
+	else if (it_expr_type == FLOAT_TYPE) {
+		double val = atof(term.lexeme().c_str());
+		if (prev_type = -1)
+			it_float = -1;
+		else
+			it_float = add(it_float, op, val);
+	}
+	else if (it_expr_type == STRING_TYPE) {
+		std::string val = term.lexeme();
+		if (prev_type = -1)
+			it_string = val;
+		else
+			it_string = add(it_string, op, val);
+	}
+	else if (it_expr_type == BOOL_FALSE) {
+		it_bool = false;
+	}
+	else if (it_expr_type == BOOL_TRUE) {
+		it_bool = true;
+	}
+	else if (it_expr_type == ID) {
+		int type = -1;
+		void* val = (sym_table.get_value(term.lexeme(), type));
+		if (type == INT_TYPE) {
+			int i_val = *((int*)val);
+			if (prev_type == -1)
+				it_int = i_val;
+			else
+				it_int = add(it_int, op, i_val);
+			it_expr_type = INT_TYPE;
+		}
+		else if (type == FLOAT_TYPE) {
+			double f_val = *((float*)val);
+			if (prev_type = -1)
+				it_float = f_val;
+			else
+				it_float = add(it_float, op, f_val);
+			it_expr_type = FLOAT_TYPE;
+		}
+		else if (type == STRING_TYPE) {
+			std::string s_val = *((std::string*)val);
+			if (prev_type == -1)
+				it_string = s_val;
+			else
+				it_string = add(it_string, op, s_val);
+			it_expr_type = STRING_TYPE;
+		}
+		else if (type == BOOL_TRUE) {
+			it_expr_type = BOOL_TRUE;
+			it_bool = true;
+		}
+		else if (type == BOOL_FALSE) {
+			it_expr_type = BOOL_FALSE;
+			it_bool = false;
+		}
+	}
+}
+
+#pragma endregion SimpleExpr
+
 /*
  * ReadExpr implementation
  */
 
+#pragma region ReadExpr
 void ReadExpr::print(std::ostream& out, std::string indent_amt) {
 	std::string x;
 	if (read_type == READ_INT)
@@ -292,13 +504,30 @@ bool ReadExpr::calc_type(SymbolTable& sym_table, int& type, std::ostream& out) {
 	}
 	out << "Unrecognized read expr\n";
 	return false;
-	
-	
 }
+
+void ReadExpr::eval(SymbolTable& sym_table, std::ostream& os) {
+	os << msg.lexeme();
+	if (read_type == READ_INT) {
+		std::cin >> it_int;
+		it_expr_type = INT_TYPE;
+	}
+	else if (read_type == READ_FLOAT) {
+		std::cin >> it_float;
+		it_expr_type = FLOAT_TYPE;
+	}
+	else if (read_type == READ_STRING) {
+		std::cin >> it_string;
+		it_expr_type = STRING_TYPE;
+	}
+}
+#pragma endregion ReadExpr
 
 /*
  * ComplexExpr implementation
  */
+
+#pragma region ComplexExpr
 void ComplexExpr::print(std::ostream& out, std::string indent_amt) {
 	out << indent_amt << "ComplexExpr: " << std::endl;
 	first_operand->print(out, indent_amt + INDENTATION);
@@ -344,9 +573,25 @@ bool ComplexExpr::calc_type(SymbolTable& sym_table, int& type, std::ostream& out
 	return rest->calc_type(sym_table, type, out);
 }
 
+void ComplexExpr::eval(SymbolTable& sym_table, std::ostream& os) {
+	first_operand->eval(sym_table, os);
+	if (math_rel == ADD)
+		op = '+';
+	else if (math_rel == SUBTRACT)
+		op = '-';
+	else if (math_rel == DIVIDE)
+		op = '/';
+	else if (math_rel == MULTIPLY)
+		op = '*';
+	rest->eval(sym_table, os);
+}
+#pragma endregion ComplexExpr
+
 /*
   SimpleBool expr
  */
+
+#pragma region SimpleBoolExpr
 void SimpleBoolExpr::print(std::ostream& out, std::string indent_amt) {
 	out << indent_amt << "SimpleBoolExpr: " << std::endl;
 	expr_term->print(out, indent_amt + INDENTATION);
@@ -361,10 +606,16 @@ void SimpleBoolExpr::set_expr_term(Expr * new_expr_term) {
 	expr_term = new_expr_term;
 }
 
+void SimpleBoolExpr::eval(SymbolTable& sym_table, std::ostream& os) {
+	expr_term->eval(sym_table, os);
+}
+#pragma endregion SimpleBoolExpr
+
 /*
  * ComplexBoolExpr implementation
  */
 
+#pragma region ComplexBoolExpr
 ComplexBoolExpr::ComplexBoolExpr() {
 	has_bool_op = false;
 }
@@ -428,13 +679,62 @@ bool ComplexBoolExpr::type_safe(SymbolTable& sym_table, std::ostream& out) {
 			return false;
 	}
 	return true;
-
 }
+
+void ComplexBoolExpr::eval(SymbolTable& sym_table, std::ostream& os) {
+	first_operand->eval(sym_table, os);
+
+	int prevb = bop; //if -1 then new bool expr
+	bool new_bool = false; // new bool value
+	
+	if (it_expr_type == INT_TYPE) {
+		int val_1 = it_int;
+		it_expr_type = -1;
+		second_operand->eval(sym_table, os);
+		int val_2 = it_int;
+		new_bool = comp(val_1, bool_rel, val_2);
+	}
+	else if (it_expr_type == FLOAT_TYPE) {
+		double val_1 = it_int;
+		it_expr_type = -1;
+		second_operand->eval(sym_table, os);
+		double val_2 = it_int;
+		new_bool = comp(val_1, bool_rel, val_2);
+	}
+	else if (it_expr_type == STRING_TYPE) {
+		std::string val_1 = it_string;
+		it_expr_type = -1;
+		second_operand->eval(sym_table, os);
+		std::string val_2 = it_string;
+		new_bool = comp(val_1, bool_rel, val_2);
+	}
+
+	if (prevb != -1) {
+		if (prevb == AND)
+			it_bool = it_bool && new_bool;
+		else if (prevb == OR)
+			it_bool = it_bool || new_bool;
+	}
+	else
+		it_bool = new_bool;
+	if (not_flag) {
+		it_bool = !it_bool;
+		not_flag = false;
+	}
+	if (has_bool_op) {
+		bop = bool_connector_type;
+		it_expr_type = -1;
+		rest->eval(sym_table, os);
+	}
+	
+}
+#pragma endregion ComplexBoolExpr
 
 /*
  * NotBoolExpr
  */
 
+#pragma region NotBoolExpr
 void NotBoolExpr::print(std::ostream& out, std::string indent_amt) {
 	out << indent_amt << "NotBoolExpr: " << std::endl;
 	bool_expr->print(out, indent_amt + INDENTATION);
@@ -448,4 +748,74 @@ bool NotBoolExpr::type_safe(SymbolTable& sym_table, std::ostream& out) {
 	if (!bool_expr->type_safe(sym_table, out))
 		return false;
 	return true;
+}
+
+void NotBoolExpr::eval(SymbolTable& sym_table, std::ostream& os) {
+	not_flag = !not_flag;
+	bool_expr->eval(sym_table, os);
+}
+#pragma endregion NotBoolExpr
+
+//helper functions
+float add(double a, char op, double c) {
+	if (op == '+')
+		return a + c;
+	if (op == '-')
+		return a - c;
+	if (op == '*')
+		return a * c;
+	return a / c;
+}
+int add(int a, char op, int c) {
+	if (op == '+')
+		return a + c;
+	if (op == '-')
+		return a - c;
+	if (op == '*')
+		return a * c;
+	return a / c;
+}
+std::string add(std::string a, char op, std::string c) {
+	if (op == '+')
+		return a + c;
+}
+
+bool comp(int a, int op, int b) {
+	if (op == GREATER_THAN)
+		return a > b;
+	if (op == GREATER_THAN_EQ)
+		return a >= b;
+	if (op == EQUAL)
+		return a == b;
+	if (op == LESS_THAN)
+		return a < b;
+	if (op == LESS_THAN_EQ)
+		return a <= b;
+	return a != b;
+}
+bool comp(double a, int op, double b) {
+	if (op == GREATER_THAN)
+		return a > b;
+	if (op == GREATER_THAN_EQ)
+		return a >= b;
+	if (op == EQUAL)
+		return a == b;
+	if (op == LESS_THAN)
+		return a < b;
+	if (op == LESS_THAN_EQ)
+		return a <= b;
+	return a != b;
+}
+bool comp(std::string a, int op, std::string b) {
+	if (op == GREATER_THAN)
+		return a > b;
+	if (op == GREATER_THAN_EQ)
+		return a >= b;
+	if (op == EQUAL)
+		return a == b;
+	if (op == LESS_THAN)
+		return a < b;
+	if (op == LESS_THAN_EQ)
+		return a <= b;
+	return a != b;
 }

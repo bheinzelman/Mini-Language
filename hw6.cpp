@@ -32,6 +32,10 @@ int main(int argc, char* argv[]) {
 	Parser theParser = Parser(the_lexer);
 	StmtList * root = theParser.Parse();
 	SymbolTable table = SymbolTable();
-	if (root != NULL)
-		root->type_safe(table, std::cout);
+	if (root != NULL) {
+	  if (root->type_safe(table, std::cout)) {
+	    SymbolTable s = SymbolTable();
+	    root->eval(s, std::cout);
+	  }
+	}
 }

@@ -18,6 +18,7 @@ class ASTNode
 {
 public:
 	virtual void print(std::ostream& out, std::string indent_amt) = 0;
+	virtual void eval(SymbolTable& sym_table, std::ostream& os) = 0;
 
 };
 
@@ -27,6 +28,7 @@ class Stmt : public ASTNode
 public:
 	virtual bool type_safe(SymbolTable& sym_table, std::ostream& out) = 0;
 	virtual void print(std::ostream& out, std::string indent_amt) = 0;
+	virtual void eval(SymbolTable& sym_table, std::ostream& os) = 0;
 };
 
 
@@ -36,6 +38,7 @@ public:
 	void print(std::ostream& out, std::string indent_amt);
 	void add_stmt(Stmt* s);
 	bool type_safe(SymbolTable& sym_table, std::ostream& out);
+	void eval(SymbolTable& sym_table, std::ostream& os);
 private:
 	std::vector<Stmt *> stmts;
 };
@@ -46,6 +49,7 @@ class Expr : public ASTNode
 public:
 	virtual void print(std::ostream& out, std::string indent_amt) = 0;
 	virtual bool calc_type(SymbolTable& sym_table, int& type, std::ostream& out) = 0;
+	virtual void eval(SymbolTable& sym_table, std::ostream& os) = 0;
 };
 
 
@@ -54,6 +58,7 @@ class BoolExpr : public ASTNode
 public:
 	virtual bool type_safe(SymbolTable& sym_table, std::ostream& out) = 0;
 	virtual void print(std::ostream& out, std::string indent_amt) = 0;
+	virtual void eval(SymbolTable& sym_table, std::ostream& os) = 0;
 };
 
 class BasicIf  {
@@ -77,6 +82,7 @@ public:
 	void set_else_stmts(StmtList* else_stmts);
 	//
 	bool type_safe(SymbolTable& sym_table, std::ostream& out);
+	void eval(SymbolTable& sym_table, std::ostream& os);
 private:
 	BasicIf * if_part;
 	std::vector<BasicIf *> elseifs;
@@ -93,11 +99,11 @@ public:
 	void set_while_stmts(StmtList * while_stmts);
 	//
 	bool type_safe(SymbolTable& sym_table, std::ostream& out);
+	void eval(SymbolTable& sym_table, std::ostream& os);
 private:
 	BoolExpr * while_expr;
 	StmtList * while_stmts;
 };
-
 
 class PrintStmt : public Stmt
 {
@@ -107,6 +113,7 @@ public:
 	void set_print_expr(Expr * print_expr);
 	//
 	bool type_safe(SymbolTable& sym_table, std::ostream& out);
+	void eval(SymbolTable& sym_table, std::ostream& os);
 private:
 	Expr * print_expr;
 	int print_type;
@@ -120,6 +127,7 @@ public:
 	void print(std::ostream& out, std::string indent_amt);
 	void set_lhs_id(Token id);
 	void set_rhs_expr(Expr * assign_expr);
+	void eval(SymbolTable& sym_table, std::ostream& os);
 private:
 	Token id;
 	Expr* assign_expr;
@@ -132,6 +140,7 @@ public:
 	bool calc_type(SymbolTable& sym_table, int& type, std::ostream& out);
 	void print(std::ostream& out, std::string indent_amt);
 	void set_token(Token term);
+	void eval(SymbolTable& sym_table, std::ostream& os);
 private:
 	Token term;
 };
@@ -144,6 +153,7 @@ public:
 	void print(std::ostream& out, std::string indent_amt);
 	void set_msg(Token msg);
 	void set_read_type(int read_type);
+	void eval(SymbolTable& sym_table, std::ostream& os);
 private:
 	int read_type;
 	Token msg;
@@ -160,6 +170,7 @@ public:
 	void set_rest(Expr * rest);
 	//
 	bool calc_type(SymbolTable& sym_table, int& type, std::ostream& out);
+	void eval(SymbolTable& sym_table, std::ostream& os);
 private:
 	Expr * first_operand;
 	int math_rel;
@@ -174,7 +185,7 @@ public:
 	void set_expr_term(Expr * expr_term);
 	//
 	bool type_safe(SymbolTable& sym_table, std::ostream& out);
-	//bool calc_type(SymbolTable& sym_table, int& type, std::ostream& out);
+	void eval(SymbolTable& sym_table, std::ostream& os);
 private:
 	Expr * expr_term;
 };
@@ -192,6 +203,7 @@ public:
 	void set_rest(BoolExpr * rest);
 	//
 	bool type_safe(SymbolTable& sym_table, std::ostream& out);
+	void eval(SymbolTable& sym_table, std::ostream& os);
 private:
 	Expr * first_operand;
 	int bool_rel;
@@ -209,6 +221,7 @@ public:
 	void set_bool_expr(BoolExpr * bool_expr);
 	//
 	bool type_safe(SymbolTable& sym_table, std::ostream& out);
+	void eval(SymbolTable& sym_table, std::ostream& os);
 private:
 	BoolExpr * bool_expr;
 };
