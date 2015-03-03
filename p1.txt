@@ -1,22 +1,8 @@
-x = iread("Enter an int: ");
-while not 3.0 < 1.1 and "String1" == "De=ude" do
-if x < 5 then
-x = x + 2;
-else if not x == 5 then
-x = 4;
+x = iread("Enter a number: ");
+
+if x < 10 then
+	println("x is less than ten");
 else
-y = x + 2 - 1;
-end
-end
-println(x);
-
-Str = "Hello";
-
-if Str == "Hello" then
-	Str = Str + " Bert";
+	println("X is greater than ten");
 end
 
-x = true;
-x = false;
-
-y = "The String";
