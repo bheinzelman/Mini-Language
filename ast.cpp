@@ -407,14 +407,14 @@ void SimpleExpr::eval(SymbolTable& sym_table, std::ostream& os) {
 	}
 	else if (it_expr_type == FLOAT_TYPE) {
 		double val = atof(term.lexeme().c_str());
-		if (prev_type = -1)
+		if (prev_type == -1)
 			it_float = -1;
 		else
 			it_float = add(it_float, op, val);
 	}
 	else if (it_expr_type == STRING_TYPE) {
 		std::string val = term.lexeme();
-		if (prev_type = -1)
+		if (prev_type == -1)
 			it_string = val;
 		else
 			it_string = add(it_string, op, val);
@@ -438,7 +438,7 @@ void SimpleExpr::eval(SymbolTable& sym_table, std::ostream& os) {
 		}
 		else if (type == FLOAT_TYPE) {
 			double f_val = *((float*)val);
-			if (prev_type = -1)
+			if (prev_type == -1)
 				it_float = f_val;
 			else
 				it_float = add(it_float, op, f_val);
@@ -776,8 +776,7 @@ int add(int a, char op, int c) {
 	return a / c;
 }
 std::string add(std::string a, char op, std::string c) {
-	if (op == '+')
-		return a + c;
+	return a + c;
 }
 
 bool comp(int a, int op, int b) {
