@@ -1,8 +1,8 @@
-x = iread("Enter a number: ");
+x=false;
+y=true;
 
-if x < 10 then
-	println("x is less than ten");
-else
-	println("X is greater than ten");
+if x == true and y == true or z == true then 
+	println("works");
 end
+
 
